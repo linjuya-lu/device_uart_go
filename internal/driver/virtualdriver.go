@@ -1,7 +1,15 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+//
+// Copyright (C) 2019-2023 IOTech Ltd
+//
+// SPDX-License-Identifier: Apache-2.0
+
+// Package driver provides an implementation of a ProtocolDriver interface.
 package driver
 
 import (
 	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/edgexfoundry/device-sdk-go/v4/pkg/interfaces"
@@ -11,135 +19,198 @@ import (
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/models"
 )
 
-// SerialProxyDriver 实现了 ProtocolDriver 接口，用于 RS-485 到 MQTT 的代理
-type SerialProxyDriver struct {
-	sdk interfaces.DeviceServiceSDK
-	lc  logger.LoggingClient
-	db  *DB
-	mu  sync.Mutex
+type VirtualDriver struct {
+	lc             logger.LoggingClient
+	asyncCh        chan<- *dsModels.AsyncValues
+	virtualDevices sync.Map
+	db             *db
+	locker         sync.Mutex
+	sdk            interfaces.DeviceServiceSDK
 }
 
-// Initialize 在服务启动时由 SDK 调用
-func (d *SerialProxyDriver) Initialize(sdk interfaces.DeviceServiceSDK) error {
+var once sync.Once
+var driver *VirtualDriver
+
+func NewVirtualDeviceDriver() interfaces.ProtocolDriver {
+	once.Do(func() {
+		driver = new(VirtualDriver)
+	})
+	return driver
+}
+
+func (d *VirtualDriver) retrieveVirtualDevice(deviceName string) (vdv *virtualDevice, err error) {
+	vd, _ := d.virtualDevices.LoadOrStore(deviceName, newVirtualDevice())
+	var ok bool
+	if vdv, ok = vd.(*virtualDevice); !ok {
+		d.lc.Errorf("retrieve virtualDevice by name: %s, the returned value has to be a reference of "+
+			"virtualDevice struct, but got: %s", deviceName, reflect.TypeOf(vd))
+	}
+	return vdv, err
+}
+
+func (d *VirtualDriver) Initialize(sdk interfaces.DeviceServiceSDK) error {
 	d.sdk = sdk
 	d.lc = sdk.LoggingClient()
-	d.db.Init()
-	return nil
-}
+	d.asyncCh = sdk.AsyncValuesChannel()
 
-// Start 在 SDK 完成初始化后调用，可在这里启动后台 goroutine
-func (d *SerialProxyDriver) Start() error {
-	// 如果不需要异步任务，直接返回 nil 即可
-	return nil
-}
+	d.db = getDb()
 
-// HandleReadCommands 从内存 DB 读取二进制数据并返回 CommandValue
-func (d *SerialProxyDriver) HandleReadCommands(
-	deviceName string,
-	protocols map[string]models.ProtocolProperties,
-	reqs []dsModels.CommandRequest,
-) ([]*dsModels.CommandValue, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	results := make([]*dsModels.CommandValue, len(reqs))
-	for i, req := range reqs {
-		res, err := d.db.GetResource(deviceName, req.DeviceResourceName)
-		if err != nil {
-			return nil, fmt.Errorf("读取设备 %s 资源 %s 失败: %w", deviceName, req.DeviceResourceName, err)
-		}
-
-		cv, err := dsModels.NewCommandValue(
-			req.DeviceResourceName,
-			common.ValueTypeBinary,
-			res.Value,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("创建 CommandValue 失败: %w", err)
-		}
-		results[i] = cv
+	if err := initVirtualResourceTable(d); err != nil {
+		return fmt.Errorf("failed to initial virtual resource table: %v", err)
 	}
-	return results, nil
+
+	return nil
 }
 
-// HandleWriteCommands 接收二进制写请求，保存到 DB 并通过 MQTT 发布
-func (d *SerialProxyDriver) HandleWriteCommands(
-	deviceName string,
-	protocols map[string]models.ProtocolProperties,
-	reqs []dsModels.CommandRequest,
-	params []*dsModels.CommandValue,
-) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+func (d *VirtualDriver) Start() error {
+	devices := d.sdk.Devices()
+	for _, device := range devices {
+		err := prepareVirtualResources(d, device.Name)
+		if err != nil {
+			return fmt.Errorf("failed to prepare virtual resources: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func (d *VirtualDriver) HandleReadCommands(deviceName string, protocols map[string]models.ProtocolProperties, reqs []dsModels.CommandRequest) (res []*dsModels.CommandValue, err error) {
+	d.locker.Lock()
+	defer driver.locker.Unlock()
+
+	vd, err := d.retrieveVirtualDevice(deviceName)
+	if err != nil {
+		return nil, err
+	}
+
+	res = make([]*dsModels.CommandValue, len(reqs))
+
+	for i, req := range reqs {
+		if dr, ok := d.sdk.DeviceResource(deviceName, req.DeviceResourceName); ok {
+			if v, err := vd.read(deviceName, req.DeviceResourceName, dr.Properties.ValueType, dr.Properties.Minimum, dr.Properties.Maximum, d.db); err != nil {
+				return nil, err
+			} else {
+				res[i] = v
+			}
+		} else {
+			return nil, fmt.Errorf("cannot find device resource %s from device %s in cache", req.DeviceResourceName, deviceName)
+		}
+	}
+
+	return res, nil
+}
+
+func (d *VirtualDriver) HandleWriteCommands(deviceName string, protocols map[string]models.ProtocolProperties, reqs []dsModels.CommandRequest,
+	params []*dsModels.CommandValue) error {
+	d.locker.Lock()
+	defer driver.locker.Unlock()
+
+	vd, err := d.retrieveVirtualDevice(deviceName)
+	if err != nil {
+		return err
+	}
 
 	for _, param := range params {
-		raw, err := param.BinaryValue()
-		if err != nil {
-			return fmt.Errorf("无效二进制写入 %s: %w", param.DeviceResourceName, err)
+		if err := vd.write(param, deviceName, d.db); err != nil {
+			return err
 		}
-
-		// 更新 DB
-		if err := d.db.UpdateResourceValue(deviceName, param.DeviceResourceName, raw); err != nil {
-			return fmt.Errorf("更新 DB 失败: %w", err)
-		}
-
-		// 发布 MQTT
-		// topic := fmt.Sprintf("edgex/%s/%s/response", deviceName, param.DeviceResourceName)
-		// if err := d.mqttCli.PublishSerialAgent(
-		// 	topic,
-		// 	"v4", // apiVersion
-		// 	"",   // correlationID
-		// 	"",   // requestID
-		// 	0,    // errorCode
-		// 	raw,
-		// ); err != nil {
-		// 	return fmt.Errorf("MQTT 发布失败: %w", err)
-		// }
 	}
 	return nil
 }
 
-// Stop 在服务停止时调用
-func (d *SerialProxyDriver) Stop(force bool) error {
-	d.lc.Info("SerialProxyDriver 停止")
+func (d *VirtualDriver) Stop(force bool) error {
+	d.lc.Info("VirtualDriver.Stop: device-virtual driver is stopping...")
+	if err := d.db.closeDb(); err != nil {
+		d.lc.Errorf("ql DB closed ungracefully, error: %v", err)
+	}
 	return nil
 }
 
-// AddDevice 当新增设备时调用，可初始化 DB 记录
-func (d *SerialProxyDriver) AddDevice(
-	deviceName string,
-	protocols map[string]models.ProtocolProperties,
-	adminState models.AdminState,
-) error {
-	// d.db.EnsureDevice(deviceName)
+func (d *VirtualDriver) AddDevice(deviceName string, protocols map[string]models.ProtocolProperties, adminState models.AdminState) error {
+	d.lc.Debugf("a new Device is added: %s", deviceName)
+	err := prepareVirtualResources(d, deviceName)
+	return err
+}
+
+func (d *VirtualDriver) UpdateDevice(deviceName string, protocols map[string]models.ProtocolProperties, adminState models.AdminState) error {
+	d.lc.Debugf("Device %s is updated", deviceName)
+	err := prepareVirtualResources(d, deviceName)
+	return err
+}
+
+func (d *VirtualDriver) RemoveDevice(deviceName string, protocols map[string]models.ProtocolProperties) error {
+	d.lc.Debugf("Device %s is removed", deviceName)
+	err := deleteVirtualResources(d, deviceName)
+	return err
+}
+
+func initVirtualResourceTable(driver *VirtualDriver) error {
+	if err := driver.db.init(); err != nil {
+		driver.lc.Errorf("failed to init storage: %v", err)
+		return err
+	}
+
 	return nil
 }
 
-// UpdateDevice 当设备更新时调用
-func (d *SerialProxyDriver) UpdateDevice(
-	deviceName string,
-	protocols map[string]models.ProtocolProperties,
-	adminState models.AdminState,
-) error {
-	// 可在此刷新配置信息
+func prepareVirtualResources(driver *VirtualDriver, deviceName string) error {
+	driver.locker.Lock()
+	defer driver.locker.Unlock()
+
+	device, err := driver.sdk.GetDeviceByName(deviceName)
+	if err != nil {
+		return err
+	}
+	if device.ProfileName == "" {
+		return nil
+	}
+	profile, err := driver.sdk.GetProfileByName(device.ProfileName)
+	if err != nil {
+		return err
+	}
+
+	for _, dr := range profile.DeviceResources {
+		if dr.Properties.ReadWrite == common.ReadWrite_R || dr.Properties.ReadWrite == common.ReadWrite_RW {
+			/*
+				d.Name <-> VIRTUAL_RESOURCE.deviceName
+				dr.Name <-> VIRTUAL_RESOURCE.CommandName, VIRTUAL_RESOURCE.ResourceName
+				ro.DeviceResource <-> VIRTUAL_RESOURCE.DeviceResourceName
+				dr.Properties.Value.Type <-> VIRTUAL_RESOURCE.DataType
+				dr.Properties.Value.DefaultValue <-> VIRTUAL_RESOURCE.Value
+			*/
+			if dr.Properties.ValueType == common.ValueTypeBinary {
+				continue
+			}
+			if err := driver.db.addResource(device.Name, dr.Name, dr.Name, true, dr.Properties.ValueType,
+				dr.Properties.DefaultValue); err != nil {
+				driver.lc.Errorf("failed to add resource: %v", err)
+				return err
+			}
+		}
+		// TODO another for loop to update the ENABLE_RANDOMIZATION field of virtual resource by device resource
+		//  "EnableRandomization_{ResourceName}"
+	}
+
 	return nil
 }
 
-// RemoveDevice 当设备移除时调用
-func (d *SerialProxyDriver) RemoveDevice(
-	deviceName string,
-	protocols map[string]models.ProtocolProperties,
-) error {
-	d.db.DeleteDevice(deviceName)
-	return nil
+func deleteVirtualResources(driver *VirtualDriver, deviceName string) error {
+	driver.locker.Lock()
+	defer driver.locker.Unlock()
+
+	if err := driver.db.deleteResources(deviceName); err != nil {
+		driver.lc.Errorf("failed to delete virtual resources of device %s: %v", deviceName, err)
+		return err
+	} else {
+		return nil
+	}
 }
 
-// Discover 驱动不支持发现
-func (d *SerialProxyDriver) Discover() error {
-	return fmt.Errorf("不支持 Discover")
+func (d *VirtualDriver) Discover() error {
+	return fmt.Errorf("driver's Discover function isn't implemented")
 }
 
-// ValidateDevice 驱动不做设备验证
-func (d *SerialProxyDriver) ValidateDevice(device models.Device) error {
+func (d *VirtualDriver) ValidateDevice(device models.Device) error {
+	d.lc.Debug("Driver's ValidateDevice function isn't implemented")
 	return nil
 }

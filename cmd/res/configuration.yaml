@@ -4,7 +4,7 @@ Writable:
 
 Service:
   Host: localhost
-  Port: 59900
+  Port: 59901
   StartupMsg: device virtual started
 
 MessageBus:

@@ -1,109 +1,142 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //
-// Copyright (C) 2025 YourCompany
+// Copyright (C) 2020-2023 IOTech Ltd
 //
 // SPDX-License-Identifier: Apache-2.0
 
 package driver
 
 import (
-	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/edgexfoundry/device-sdk-go/v4/pkg/models"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/common"
 )
 
-// resourceIntArray 负责读写整型数组类型的 DeviceResource
-type resourceIntArray struct {
-	db *DB
-}
+type resourceIntArray struct{}
 
-// NewResourceIntArray 构造函数，传入你的 DB 实例
-func NewResourceIntArray(db *DB) *resourceIntArray {
-	return &resourceIntArray{db: db}
-}
+func (ri *resourceIntArray) value(db *db, deviceName, deviceResourceName string, minimum,
+	maximum *float64) (*models.CommandValue, error) {
 
-// value 从 DB 中获取最新存储的 JSON bytes，解析为对应位宽的切片,
-// 并封装成 CommandValue 上报
-func (ri *resourceIntArray) value(
-	deviceName, deviceResourceName, dataType string,
-) (*models.CommandValue, error) {
-	res, err := ri.db.GetResource(deviceName, deviceResourceName)
+	result := &models.CommandValue{}
+
+	enableRandomization, currentValue, dataType, err := db.getVirtualResourceData(deviceName, deviceResourceName)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
+
+	var newArrayIntValue []int64
 
 	switch dataType {
 	case common.ValueTypeInt8Array:
-		var arr []int8
-		if err := json.Unmarshal(res.Value, &arr); err != nil {
-			return nil, fmt.Errorf("unmarshal int8 array: %w", err)
+		if enableRandomization {
+			for i := 0; i < defaultArrayValueSize; i++ {
+				newArrayIntValue = append(newArrayIntValue, randomInt(common.ValueTypeInt8, minimum, maximum))
+			}
+		} else {
+			strArr := strings.Split(strings.Trim(currentValue, "[]"), " ")
+			for _, s := range strArr {
+				i, err := strconv.ParseInt(strings.Trim(s, " "), 10, 8)
+				if err != nil {
+					return result, err
+				}
+				newArrayIntValue = append(newArrayIntValue, i)
+			}
 		}
-		return models.NewCommandValue(deviceResourceName, common.ValueTypeInt8Array, arr)
+		var int8Array []int8
+		for _, i := range newArrayIntValue {
+			int8Array = append(int8Array, int8(i))
+		}
+		result, err = models.NewCommandValue(deviceResourceName, common.ValueTypeInt8Array, int8Array)
 	case common.ValueTypeInt16Array:
-		var arr []int16
-		if err := json.Unmarshal(res.Value, &arr); err != nil {
-			return nil, fmt.Errorf("unmarshal int16 array: %w", err)
+		if enableRandomization {
+			for i := 0; i < defaultArrayValueSize; i++ {
+				newArrayIntValue = append(newArrayIntValue, randomInt(common.ValueTypeInt16, minimum, maximum))
+			}
+		} else {
+			strArr := strings.Split(strings.Trim(currentValue, "[]"), " ")
+			for _, s := range strArr {
+				i, err := strconv.ParseInt(strings.Trim(s, " "), 10, 16)
+				if err != nil {
+					return result, err
+				}
+				newArrayIntValue = append(newArrayIntValue, i)
+			}
 		}
-		return models.NewCommandValue(deviceResourceName, common.ValueTypeInt16Array, arr)
+		var int16Array []int16
+		for _, i := range newArrayIntValue {
+			int16Array = append(int16Array, int16(i))
+		}
+		result, err = models.NewCommandValue(deviceResourceName, common.ValueTypeInt16Array, int16Array)
 	case common.ValueTypeInt32Array:
-		var arr []int32
-		if err := json.Unmarshal(res.Value, &arr); err != nil {
-			return nil, fmt.Errorf("unmarshal int32 array: %w", err)
+		if enableRandomization {
+			for i := 0; i < defaultArrayValueSize; i++ {
+				newArrayIntValue = append(newArrayIntValue, randomInt(common.ValueTypeInt32, minimum, maximum))
+			}
+		} else {
+			strArr := strings.Split(strings.Trim(currentValue, "[]"), " ")
+			for _, s := range strArr {
+				i, err := strconv.ParseInt(strings.Trim(s, " "), 10, 32)
+				if err != nil {
+					return result, err
+				}
+				newArrayIntValue = append(newArrayIntValue, i)
+			}
 		}
-		return models.NewCommandValue(deviceResourceName, common.ValueTypeInt32Array, arr)
+		var int32Array []int32
+		for _, i := range newArrayIntValue {
+			int32Array = append(int32Array, int32(i))
+		}
+		result, err = models.NewCommandValue(deviceResourceName, common.ValueTypeInt32Array, int32Array)
 	case common.ValueTypeInt64Array:
-		var arr []int64
-		if err := json.Unmarshal(res.Value, &arr); err != nil {
-			return nil, fmt.Errorf("unmarshal int64 array: %w", err)
+		if enableRandomization {
+			for i := 0; i < defaultArrayValueSize; i++ {
+				newArrayIntValue = append(newArrayIntValue, randomInt(common.ValueTypeInt64, minimum, maximum))
+			}
+		} else {
+			strArr := strings.Split(strings.Trim(currentValue, "[]"), " ")
+			for _, s := range strArr {
+				i, err := strconv.ParseInt(strings.Trim(s, " "), 10, 64)
+				if err != nil {
+					return result, err
+				}
+				newArrayIntValue = append(newArrayIntValue, i)
+			}
 		}
-		return models.NewCommandValue(deviceResourceName, common.ValueTypeInt64Array, arr)
-	default:
-		return nil, fmt.Errorf("unsupported integer-array dataType: %s", dataType)
-	}
-}
-
-// write 接收上层下发的 CommandValue，把整数数组写入 DB（以 JSON bytes 存储）
-func (ri *resourceIntArray) write(
-	param *models.CommandValue,
-	deviceName, deviceResourceName string,
-) error {
-	var (
-		raw []byte
-		err error
-	)
-	switch param.Type {
-	case common.ValueTypeInt8Array:
-		var arr []int8
-		if arr, err = param.Int8ArrayValue(); err == nil {
-			raw, err = json.Marshal(arr)
-		}
-	case common.ValueTypeInt16Array:
-		var arr []int16
-		if arr, err = param.Int16ArrayValue(); err == nil {
-			raw, err = json.Marshal(arr)
-		}
-	case common.ValueTypeInt32Array:
-		var arr []int32
-		if arr, err = param.Int32ArrayValue(); err == nil {
-			raw, err = json.Marshal(arr)
-		}
-	case common.ValueTypeInt64Array:
-		var arr []int64
-		if arr, err = param.Int64ArrayValue(); err == nil {
-			raw, err = json.Marshal(arr)
-		}
-	default:
-		return fmt.Errorf("resourceIntArray.write: unsupported type %s", param.Type)
+		result, err = models.NewCommandValue(deviceResourceName, common.ValueTypeInt64Array, newArrayIntValue)
 	}
 
 	if err != nil {
-		return fmt.Errorf("invalid integer-array write for %s: %w", deviceResourceName, err)
+		return result, err
 	}
+	if enableRandomization {
+		err = db.updateResourceValue(result.ValueToString(), deviceName, deviceResourceName, false)
+	}
+	return result, err
+}
 
-	if err := ri.db.UpdateResourceValue(deviceName, deviceResourceName, raw); err != nil {
-		return fmt.Errorf("db update failed: %w", err)
+func (ri *resourceIntArray) write(param *models.CommandValue, deviceName string, db *db) error {
+	switch param.Type {
+	case common.ValueTypeInt8Array:
+		if _, err := param.Int8ArrayValue(); err != nil {
+			return fmt.Errorf("resourceInt.write: %v", err)
+		}
+	case common.ValueTypeInt16Array:
+		if _, err := param.Int16ArrayValue(); err != nil {
+			return fmt.Errorf("resourceInt.write: %v", err)
+		}
+	case common.ValueTypeInt32Array:
+		if _, err := param.Int32ArrayValue(); err != nil {
+			return fmt.Errorf("resourceInt.write: %v", err)
+		}
+	case common.ValueTypeInt64Array:
+		if _, err := param.Int64ArrayValue(); err != nil {
+			return fmt.Errorf("resourceInt.write: %v", err)
+		}
+	default:
+		return fmt.Errorf("resourceInt.write: unknown device resource: %s", param.DeviceResourceName)
 	}
-	return nil
+	return db.updateResourceValue(param.ValueToString(), deviceName, param.DeviceResourceName, true)
 }

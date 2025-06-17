@@ -8,6 +8,7 @@ package main
 
 import (
 	"github.com/edgexfoundry/device-sdk-go/v4/pkg/startup"
+	"github.com/edgexfoundry/device-virtual-go/internal/driver"
 
 	device_virtual "github.com/edgexfoundry/device-virtual-go"
 )
@@ -17,6 +18,6 @@ const (
 )
 
 func main() {
-	// d := driver.NewVirtualDeviceDriver()
+	d := driver.NewVirtualDeviceDriver()
 	startup.Bootstrap(serviceName, device_virtual.Version, d)
 }
