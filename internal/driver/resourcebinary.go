@@ -32,7 +32,7 @@ func (rb *resourceBinary) value(deviceResourceName string) (*models.CommandValue
 	return result, nil
 }
 
-func (rb *resourceBinary) write(param *models.CommandValue, deviceName string, db *db) (err error) {
+func (rb *resourceBinary) write(_ *models.CommandValue, _ string, _ *db) (err error) {
 	return fmt.Errorf("resourceBinary.write: core-command and device-sdk do not yet support " +
 		"the put operation of binary resource. ")
 }

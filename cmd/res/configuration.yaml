@@ -15,3 +15,54 @@ Device:
   # These have common values (currently), but must be here for service local env overrides to apply when customized
   ProfilesDir: "./res/profiles"
   DevicesDir: "./res/devices"
+
+SerialProxy:
+  # 1. 串口设备表（新增 baudrate、timeoutMs，以及 RS-485 的 dePin）
+  Ports:
+    - name: "UART1"
+      device: "/dev/ttyUSB1"
+      type: "uart"
+      baudrate: 115200    # 串口波特率
+      timeoutMs: 500      # 读超时（毫秒）
+    - name: "RS485-1"
+      device: "/dev/ttyUSB0"
+      type: "rs485"
+      baudrate: 9600
+      timeoutMs: 500
+      dePin: 914          # RS-485 驱动使能 GPIO 编号
+    - name: "RS232-1"
+      device: "/dev/ttyS1"
+      type: "rs232"
+      baudrate: 19200
+      timeoutMs: 500
+    - name: "RS232-2"
+      device: "/dev/ttyS2"
+      type: "rs232"
+      baudrate: 19200
+      timeoutMs: 500
+
+  # 2. 协议定义表
+  Protocols:
+    - id: "customProto23"
+      requestTopic:  "edgex/service/command/request/device_uart/custom23"
+      responseTopic: "edgex/service/data/device_uart/custom23"
+    - id: "customProto16"
+      requestTopic:  "edgex/service/command/request/device_uart/custom16"
+      responseTopic: "edgex/service/data/device_uart/custom16"
+    - id: "customProto55"
+      requestTopic:  "edgex/service/command/request/device_uart/custom55"
+      responseTopic: "edgex/service/data/device_uart/custom55"
+
+  # 3. 端口↔协议 绑定表（支持一对多）
+  Bindings:
+    - portName:   "UART1"
+      protocolId: "customProto23"   # 35 字节 payload
+    - portName:   "RS485-1"
+      protocolId: "customProto16"   # 22 字节 payload
+    - portName:   "RS232-1"
+      protocolId: "customProto23"
+    - portName:   "RS232-2"
+      protocolId: "customProto55"   # 85 字节 payload
+
+  # 4. 默认协议（Bindings 中找不到时回退使用）
+  DefaultProtocol: "customProto23"

@@ -1,12 +1,14 @@
-module github.com/edgexfoundry/device-virtual-go
+module github.com/linjuya-lu/device_uart_go
 
 go 1.23
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.5.0
 	github.com/edgexfoundry/device-sdk-go/v4 v4.0.0
+	github.com/edgexfoundry/device-virtual-go v1.3.1
 	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.0.1
 	github.com/tarm/serial v0.0.0-20180830185346-98f6abe2eb07
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (

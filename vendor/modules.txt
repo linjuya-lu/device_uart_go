@@ -37,6 +37,9 @@ github.com/edgexfoundry/device-sdk-go/v4/pkg/interfaces
 github.com/edgexfoundry/device-sdk-go/v4/pkg/models
 github.com/edgexfoundry/device-sdk-go/v4/pkg/service
 github.com/edgexfoundry/device-sdk-go/v4/pkg/startup
+# github.com/edgexfoundry/device-virtual-go v1.3.1
+## explicit; go 1.15
+github.com/edgexfoundry/device-virtual-go
 # github.com/edgexfoundry/go-mod-bootstrap/v4 v4.0.3
 ## explicit; go 1.23
 github.com/edgexfoundry/go-mod-bootstrap/v4/bootstrap
@@ -726,6 +729,9 @@ google.golang.org/protobuf/types/known/timestamppb
 gopkg.in/go-jose/go-jose.v2
 gopkg.in/go-jose/go-jose.v2/cipher
 gopkg.in/go-jose/go-jose.v2/json
+# gopkg.in/yaml.v2 v2.4.0
+## explicit; go 1.15
+gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
