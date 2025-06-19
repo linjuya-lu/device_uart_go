@@ -12,11 +12,13 @@ import (
 	"reflect"
 	"sync"
 
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/edgexfoundry/device-sdk-go/v4/pkg/interfaces"
 	dsModels "github.com/edgexfoundry/device-sdk-go/v4/pkg/models"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/clients/logger"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/common"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/models"
+	"github.com/linjuya-lu/device_uart_go/internal/mqttclient"
 )
 
 type VirtualDriver struct {
@@ -26,6 +28,7 @@ type VirtualDriver struct {
 	db             *db
 	locker         sync.Mutex
 	sdk            interfaces.DeviceServiceSDK
+	mqttClient     mqtt.Client
 }
 
 var once sync.Once
@@ -52,11 +55,25 @@ func (d *VirtualDriver) Initialize(sdk interfaces.DeviceServiceSDK) error {
 	d.sdk = sdk
 	d.lc = sdk.LoggingClient()
 	d.asyncCh = sdk.AsyncValuesChannel()
-
 	d.db = getDb()
 
 	if err := initVirtualResourceTable(d); err != nil {
-		return fmt.Errorf("failed to initial virtual resource table: %v", err)
+		return fmt.Errorf("failed to init virtual resource table: %w", err)
+	}
+
+	// —— 1. 初始化 MQTT 客户端 —— //
+	brokerURL := "tcp://localhost:1883"
+	clientID := "serial-proxy-client"
+
+	client, err := mqttclient.NewClient(brokerURL, clientID)
+	if err != nil {
+		return fmt.Errorf("初始化 MQTT 客户端失败: %w", err)
+	}
+	d.mqttClient = client
+
+	// —— 2. 初始化串口代理 —— //
+	if err := InitializeSerialProxy("./res/config/serial-proxy.yaml", client); err != nil {
+		return fmt.Errorf("初始化串口代理失败: %w", err)
 	}
 
 	return nil
