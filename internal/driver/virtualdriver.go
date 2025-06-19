@@ -72,7 +72,7 @@ func (d *VirtualDriver) Initialize(sdk interfaces.DeviceServiceSDK) error {
 	d.mqttClient = client
 
 	// —— 2. 初始化串口代理 —— //
-	if err := InitializeSerialProxy("./res/config/serial-proxy.yaml", client); err != nil {
+	if err := InitializeSerialProxy("./res/configuration.yaml", client); err != nil {
 		return fmt.Errorf("初始化串口代理失败: %w", err)
 	}
 
