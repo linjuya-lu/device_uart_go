@@ -13,15 +13,15 @@ type Port struct {
 
 // Protocol 描述一种协议对应的 MQTT 主题
 type Protocol struct {
-	ID            string // 协议标识符，对应配置中的 key
-	RequestTopic  string // 下发命令主题
-	ResponseTopic string // 上报数据主题
+	ID            string `yaml:"id"`            // 协议标识符，对应配置中的 key
+	RequestTopic  string `yaml:"requestTopic"`  // 下发命令主题
+	ResponseTopic string `yaml:"responseTopic"` // 上报数据主题
 }
 
 // Binding 描述某个端口绑定使用哪种协议
 type Binding struct {
-	PortName   string // Port.Name
-	ProtocolID string // Protocol.ID
+	PortName   string `yaml:"portName"`   // Port.Name
+	ProtocolID string `yaml:"protocolId"` // Protocol.ID
 }
 
 // SerialProxyConfig 汇总了 Ports、Protocols、Bindings 等

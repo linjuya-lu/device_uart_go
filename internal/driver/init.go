@@ -7,6 +7,7 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/linjuya-lu/device_uart_go/internal/config"
+	"github.com/linjuya-lu/device_uart_go/internal/mqttclient"
 	"github.com/linjuya-lu/device_uart_go/internal/serial"
 )
 
@@ -83,7 +84,10 @@ func InitializeSerialProxy(configPath string, mqttClient mqtt.Client) error {
 					}
 					// 发布到 MQTT
 					if topic != "" {
-						mqttClient.Publish(topic, 0, false, frame)
+						err := mqttclient.PublishSerialFrame(mqttClient, topic, "/dev/ttyUSB1", frame)
+						if err != nil {
+							fmt.Printf("❌ 发布失败: %v\n", err)
+						}
 					}
 					buf = rest
 				}
@@ -101,6 +105,8 @@ func InitializeSerialProxy(configPath string, mqttClient mqtt.Client) error {
 					continue
 				}
 				if p, ok := portMap[portName]; ok {
+					fmt.Printf("⇦ 写入串口: 逻辑名=%s,  数据(hex)=% X\n",
+						portName, msg.Payload())
 					p.Write(msg.Payload())
 				}
 			}

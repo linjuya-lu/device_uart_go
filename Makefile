@@ -43,7 +43,7 @@ tidy:
 	go mod tidy
 
 cmd/device-virtual:
-	CGO_ENABLED=0 go build -tags "$(ADD_BUILD_TAGS)" $(GOFLAGS) -o $@ ./cmd
+	CGO_ENABLED=0 go build -tags "$(ADD_BUILD_TAGS)" $(GOFLAGS) -o ./cmd/device-uart ./cmd
 
 
 unittest:

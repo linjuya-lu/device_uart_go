@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	serviceName string = "device-virtual"
+	serviceName string = "device-uart"
 )
 
 func main() {
-	d := driver.NewVirtualDeviceDriver()
+	d := driver.NewUartDeviceDriver()
 	startup.Bootstrap(serviceName, device_virtual.Version, d)
 }
