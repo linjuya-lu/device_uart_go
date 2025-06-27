@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"sync"
 
@@ -52,10 +53,23 @@ func LoadConfig(path string) error {
 			portMap[p.Name] = p
 		}
 
-		// 4. 构建 protocolMap
-		protocolMap = make(map[string]Protocol, len(SerialCfg.Protocols))
-		for _, pr := range SerialCfg.Protocols {
-			protocolMap[pr.ID] = pr
+		// 4. 动态构建 protocolMap —— 只扫 Bindings，不再用 SerialCfg.Protocols
+		protocolMap = make(map[string]Protocol, len(SerialCfg.Bindings))
+		for _, b := range SerialCfg.Bindings {
+			id := b.ProtocolID
+			if _, exists := protocolMap[id]; exists {
+				continue
+			}
+			// 用固定前缀 + protocolId 拼请求/响应主题
+			req := fmt.Sprintf(
+				"edgex/service/command/request/device_uart/%s", id)
+			rsp := fmt.Sprintf(
+				"edgex/service/data/device_uart/%s", id)
+			protocolMap[id] = Protocol{
+				ID:            id,
+				RequestTopic:  req,
+				ResponseTopic: rsp,
+			}
 		}
 
 		// 5. 构建 bindingMap（端口 → 协议）

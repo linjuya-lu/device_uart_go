@@ -9,26 +9,23 @@ package driver
 
 import (
 	"fmt"
-	"reflect"
 	"sync"
+	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/edgexfoundry/device-sdk-go/v4/pkg/interfaces"
 	dsModels "github.com/edgexfoundry/device-sdk-go/v4/pkg/models"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/clients/logger"
-	"github.com/edgexfoundry/go-mod-core-contracts/v4/common"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/models"
 	"github.com/linjuya-lu/device_uart_go/internal/mqttclient"
 )
 
 type UartlDriver struct {
-	lc             logger.LoggingClient
-	asyncCh        chan<- *dsModels.AsyncValues
-	virtualDevices sync.Map
-	db             *db
-	locker         sync.Mutex
-	sdk            interfaces.DeviceServiceSDK
-	mqttClient     mqtt.Client
+	lc         logger.LoggingClient
+	asyncCh    chan<- *dsModels.AsyncValues
+	locker     sync.Mutex
+	sdk        interfaces.DeviceServiceSDK
+	mqttClient mqtt.Client
 }
 
 var once sync.Once
@@ -41,21 +38,10 @@ func NewUartDeviceDriver() interfaces.ProtocolDriver {
 	return driver
 }
 
-func (d *UartlDriver) retrieveVirtualDevice(deviceName string) (vdv *virtualDevice, err error) {
-	vd, _ := d.virtualDevices.LoadOrStore(deviceName, newVirtualDevice())
-	var ok bool
-	if vdv, ok = vd.(*virtualDevice); !ok {
-		d.lc.Errorf("retrieve virtualDevice by name: %s, the returned value has to be a reference of "+
-			"virtualDevice struct, but got: %s", deviceName, reflect.TypeOf(vd))
-	}
-	return vdv, err
-}
-
 func (d *UartlDriver) Initialize(sdk interfaces.DeviceServiceSDK) error {
 	d.sdk = sdk
 	d.lc = sdk.LoggingClient()
 	d.asyncCh = sdk.AsyncValuesChannel()
-	d.db = getDb()
 
 	if err := initVirtualResourceTable(d); err != nil {
 		return fmt.Errorf("failed to init virtual resource table: %w", err)
@@ -80,14 +66,7 @@ func (d *UartlDriver) Initialize(sdk interfaces.DeviceServiceSDK) error {
 }
 
 func (d *UartlDriver) Start() error {
-	devices := d.sdk.Devices()
-	for _, device := range devices {
-		err := prepareVirtualResources(d, device.Name)
-		if err != nil {
-			return fmt.Errorf("failed to prepare virtual resources: %v", err)
-		}
-	}
-
+	d.lc.Infof("串口代理已启动")
 	return nil
 }
 
@@ -95,23 +74,20 @@ func (d *UartlDriver) HandleReadCommands(deviceName string, protocols map[string
 	d.locker.Lock()
 	defer driver.locker.Unlock()
 
-	vd, err := d.retrieveVirtualDevice(deviceName)
-	if err != nil {
-		return nil, err
-	}
-
 	res = make([]*dsModels.CommandValue, len(reqs))
 
-	for i, req := range reqs {
-		if dr, ok := d.sdk.DeviceResource(deviceName, req.DeviceResourceName); ok {
-			if v, err := vd.read(deviceName, req.DeviceResourceName, dr.Properties.ValueType, dr.Properties.Minimum, dr.Properties.Maximum, d.db); err != nil {
-				return nil, err
-			} else {
-				res[i] = v
-			}
-		} else {
-			return nil, fmt.Errorf("cannot find device resource %s from device %s in cache", req.DeviceResourceName, deviceName)
+	for _, req := range reqs {
+		resName := req.DeviceResourceName
+		// 构造 CommandValue
+		cv := &dsModels.CommandValue{
+			DeviceResourceName: "",
+			Type:               "",
+			Value:              "",
+			Origin:             time.Now().UnixNano(),
+			Tags:               map[string]string{},
 		}
+		res = append(res, cv)
+		d.lc.Infof("读取值: %s.%s ", deviceName, resName)
 	}
 
 	return res, nil
@@ -122,105 +98,46 @@ func (d *UartlDriver) HandleWriteCommands(deviceName string, protocols map[strin
 	d.locker.Lock()
 	defer driver.locker.Unlock()
 
-	vd, err := d.retrieveVirtualDevice(deviceName)
-	if err != nil {
-		return err
-	}
+	// 遍历每个请求，取出对应的值并写入 config
+	for i, req := range reqs {
+		resName := req.DeviceResourceName
+		cv := params[i]
 
-	for _, param := range params {
-		if err := vd.write(param, deviceName, d.db); err != nil {
-			return err
-		}
+		// 直接使用 CommandValue.Value（已经是合适的 Go 类型）
+		value := cv.Value
+
+		// 并发安全地写入运行时值表
+
+		d.lc.Infof("写入值: %s.%s = %v", deviceName, resName, value)
 	}
 	return nil
 }
 
 func (d *UartlDriver) Stop(force bool) error {
-	d.lc.Info("UartlDriver.Stop: device-virtual driver is stopping...")
-	if err := d.db.closeDb(); err != nil {
-		d.lc.Errorf("ql DB closed ungracefully, error: %v", err)
-	}
+	d.lc.Info("VirtualDriver.Stop: device-virtual driver is stopping...")
+
 	return nil
 }
 
 func (d *UartlDriver) AddDevice(deviceName string, protocols map[string]models.ProtocolProperties, adminState models.AdminState) error {
 	d.lc.Debugf("a new Device is added: %s", deviceName)
-	err := prepareVirtualResources(d, deviceName)
-	return err
+
+	return nil
 }
 
 func (d *UartlDriver) UpdateDevice(deviceName string, protocols map[string]models.ProtocolProperties, adminState models.AdminState) error {
 	d.lc.Debugf("Device %s is updated", deviceName)
-	err := prepareVirtualResources(d, deviceName)
-	return err
+	return nil
 }
 
 func (d *UartlDriver) RemoveDevice(deviceName string, protocols map[string]models.ProtocolProperties) error {
 	d.lc.Debugf("Device %s is removed", deviceName)
-	err := deleteVirtualResources(d, deviceName)
-	return err
+	return nil
 }
 
 func initVirtualResourceTable(driver *UartlDriver) error {
-	if err := driver.db.init(); err != nil {
-		driver.lc.Errorf("failed to init storage: %v", err)
-		return err
-	}
 
 	return nil
-}
-
-func prepareVirtualResources(driver *UartlDriver, deviceName string) error {
-	driver.locker.Lock()
-	defer driver.locker.Unlock()
-
-	device, err := driver.sdk.GetDeviceByName(deviceName)
-	if err != nil {
-		return err
-	}
-	if device.ProfileName == "" {
-		return nil
-	}
-	profile, err := driver.sdk.GetProfileByName(device.ProfileName)
-	if err != nil {
-		return err
-	}
-
-	for _, dr := range profile.DeviceResources {
-		if dr.Properties.ReadWrite == common.ReadWrite_R || dr.Properties.ReadWrite == common.ReadWrite_RW {
-			/*
-				d.Name <-> VIRTUAL_RESOURCE.deviceName
-				dr.Name <-> VIRTUAL_RESOURCE.CommandName, VIRTUAL_RESOURCE.ResourceName
-				ro.DeviceResource <-> VIRTUAL_RESOURCE.DeviceResourceName
-				dr.Properties.Value.Type <-> VIRTUAL_RESOURCE.DataType
-				dr.Properties.Value.DefaultValue <-> VIRTUAL_RESOURCE.Value
-			*/
-			if dr.Properties.ValueType == common.ValueTypeBinary {
-				continue
-			}
-			if err := driver.db.addResource(device.Name, dr.Name, dr.Name, true, dr.Properties.ValueType,
-				dr.Properties.DefaultValue); err != nil {
-				driver.lc.Errorf("failed to add resource: %v", err)
-				return err
-			}
-		}
-		// TODO another for loop to update the ENABLE_RANDOMIZATION field of virtual resource by device resource
-		//  "EnableRandomization_{ResourceName}"
-	}
-
-	return nil
-}
-
-func deleteVirtualResources(driver *UartlDriver, deviceName string) error {
-	driver.locker.Lock()
-	defer driver.locker.Unlock()
-
-	if err := driver.db.deleteResources(deviceName); err != nil {
-		driver.lc.Errorf("failed to delete virtual resources of device %s: %v", deviceName, err)
-		return err
-	} else {
-		return nil
-	}
 }
 
 func (d *UartlDriver) Discover() error {

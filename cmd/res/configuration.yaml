@@ -41,19 +41,7 @@ SerialProxy:
     #   baudrate: 19200
     #   timeoutMs: 500
 
-  # 2. 协议定义表
-  Protocols:
-    - id: "customProto23"
-      requestTopic:  "edgex/service/command/request/device_uart/custom23"
-      responseTopic: "edgex/service/data/device_uart/custom23"
-    # - id: "customProto16"
-    #   requestTopic:  "edgex/service/command/request/device_uart/custom16"
-    #   responseTopic: "edgex/service/data/device_uart/custom16"
-    # - id: "customProto55"
-    #   requestTopic:  "edgex/service/command/request/device_uart/custom55"
-    #   responseTopic: "edgex/service/data/device_uart/custom55"
-
-  # 3. 端口↔协议 绑定表（支持一对多）
+  # 2. 端口↔协议 绑定表（支持一对多）
   Bindings:
     - portName:   "UART0"
       protocolId: "customProto23"   # 35 字节 payload
