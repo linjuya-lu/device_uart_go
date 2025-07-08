@@ -1,8 +1,9 @@
 package serial
 
 import (
-	"bytes"
+	"encoding/hex"
 	"fmt"
+	"strings"
 )
 
 // FrameParser 定义了一个从字节流中提取完整帧的函数类型。
@@ -19,79 +20,73 @@ var Parsers = map[string]FrameParser{
 	"customProto55": parseProto55,
 }
 
-// parseProto23 从 buf 中查找以 0xAA 开头、0x55 结尾的帧。
-// func parseProto23(buf []byte) ([]byte, []byte, error) {
-// 	// 查找帧头 0xAA
-// 	i := bytes.IndexByte(buf, 0xAA)
-// 	if i < 0 {
-// 		// 缓冲区中无帧头，全部数据留待下次解析
-// 		return nil, buf, nil
-// 	}
-// 	// 丢弃帧头前的杂散数据
-// 	buf = buf[i:]
-// 	// 查找帧尾 0x55
-// 	j := bytes.IndexByte(buf, 0x55)
-// 	if j < 0 {
-// 		// 尚未找到帧尾，保留全部数据
-// 		return nil, buf, nil
-// 	}
-// 	// 提取完整帧，并返回剩余数据
-// 	return buf[:j+1], buf[j+1:], nil
-// }
-
+// parseProto23: ASCII 流 buf 中查找以 "AA" 开头、"55" 结尾的帧（每个字符代表一个十六进制字符）
 func parseProto23(buf []byte) ([]byte, []byte, error) {
-	// 1. 打印接收到的原始 buf
-	fmt.Printf(">>> parseProto23 passthrough, buf len=%d, buf=% X\n", len(buf), buf)
+	s := string(buf)
+	fmt.Printf("parseProto23 ▶ in ascii: %s\n", s)
 
-	// 2. 如果 buf 为空，就返回 nil，继续等数据
-	if len(buf) == 0 {
+	// 查找 "AA" 头
+	start := strings.Index(s, "AA")
+	if start < 0 {
 		return nil, buf, nil
 	}
+	// 在头之后查找 "55" 尾
+	idx := strings.Index(s[start+2:], "55")
+	if idx < 0 {
+		return nil, buf, nil
+	}
+	end := start + 2 + idx + 2 // 包含尾标长度
 
-	// 3. 把整个 buf 当作一帧 frame 返回，rest 置空
-	frame := buf
-	rest := []byte{}
+	frameHex := s[start:end]
+	restAscii := s[end:]
+	fmt.Printf("parseProto23 ▶ frameHex: %s, restAscii: %s\n", frameHex, restAscii)
 
-	// 4. 调试打印一下我们要发的 frame
-	fmt.Printf("    passthrough frame len=%d, frame=% X\n", len(frame), frame)
-
-	return frame, rest, nil
+	// 将十六进制字符串 decode 为字节
+	frame, err := hex.DecodeString(frameHex)
+	if err != nil {
+		return nil, buf, fmt.Errorf("parseProto23 decode error: %w", err)
+	}
+	return frame, []byte(restAscii), nil
 }
 
+// parseProto16: ASCII 流 buf 中查找以 "16" 开头、"33" 结尾的帧
 func parseProto16(buf []byte) ([]byte, []byte, error) {
-	// 查找帧头 0x16
-	i := bytes.IndexByte(buf, 0x16)
-	if i < 0 {
-		// 缓冲区中无帧头，全部数据留待下次解析
+	s := string(buf)
+	start := strings.Index(s, "16")
+	if start < 0 {
 		return nil, buf, nil
 	}
-	// 丢弃帧头前的杂散数据
-	buf = buf[i:]
-	// 查找帧尾 0xBB
-	j := bytes.IndexByte(buf, 0x33)
-	if j < 0 {
-		// 尚未找到帧尾，保留全部数据
+	idx := strings.Index(s[start+2:], "33")
+	if idx < 0 {
 		return nil, buf, nil
 	}
-	// 提取完整帧，并返回剩余数据
-	return buf[:j+1], buf[j+1:], nil
+	end := start + 2 + idx + 2
+	frameHex := s[start:end]
+	restAscii := s[end:]
+	frame, err := hex.DecodeString(frameHex)
+	if err != nil {
+		return nil, buf, fmt.Errorf("parseProto16 decode error: %w", err)
+	}
+	return frame, []byte(restAscii), nil
 }
 
+// parseProto55: ASCII 流 buf 中查找以 "55" 开头、"CC" 结尾的帧
 func parseProto55(buf []byte) ([]byte, []byte, error) {
-	// 查找帧头 0x55
-	i := bytes.IndexByte(buf, 0x55)
-	if i < 0 {
-		// 缓冲区中无帧头，全部数据留待下次解析
+	s := string(buf)
+	start := strings.Index(s, "55")
+	if start < 0 {
 		return nil, buf, nil
 	}
-	// 丢弃帧头前的杂散数据
-	buf = buf[i:]
-	// 查找帧尾 0xCC
-	j := bytes.IndexByte(buf, 0xCC)
-	if j < 0 {
-		// 尚未找到帧尾，保留全部数据
+	idx := strings.Index(s[start+2:], "CC")
+	if idx < 0 {
 		return nil, buf, nil
 	}
-	// 提取完整帧，并返回剩余数据
-	return buf[:j+1], buf[j+1:], nil
+	end := start + 2 + idx + 2
+	frameHex := s[start:end]
+	restAscii := s[end:]
+	frame, err := hex.DecodeString(frameHex)
+	if err != nil {
+		return nil, buf, fmt.Errorf("parseProto55 decode error: %w", err)
+	}
+	return frame, []byte(restAscii), nil
 }

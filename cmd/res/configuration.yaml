@@ -12,12 +12,10 @@ MessageBus:
     ClientId: device-virtual
 
 Device:
-  # These have common values (currently), but must be here for service local env overrides to apply when customized
   ProfilesDir: "./res/profiles"
   DevicesDir: "./res/devices"
 
 SerialProxy:
-  # 1. 串口设备表（新增 baudrate、timeoutMs，以及 RS-485 的 dePin）
   Ports:
     - name: "UART0"
       device: "/dev/ttyUSB0"
@@ -41,10 +39,12 @@ SerialProxy:
     #   baudrate: 19200
     #   timeoutMs: 500
 
-  # 2. 端口↔协议 绑定表（支持一对多）
+  # 2. 端口↔协议 
   Bindings:
     - portName:   "UART0"
       protocolId: "customProto23"   # 35 字节 payload
+    - portName:   "UART0"
+      protocolId: "customProto16"   # 35 字节 payload
     # - portName:   "RS485-1"
     #   protocolId: "customProto16"   # 22 字节 payload
     # - portName:   "RS232-1"
@@ -52,5 +52,4 @@ SerialProxy:
     # - portName:   "RS232-2"
     #   protocolId: "customProto55"   # 85 字节 payload
 
-  # 4. 默认协议（Bindings 中找不到时回退使用）
   DefaultProtocol: "customProto23"

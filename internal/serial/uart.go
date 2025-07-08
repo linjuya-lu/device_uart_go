@@ -8,13 +8,13 @@ import (
 	"github.com/tarm/serial"
 )
 
-// UARTPort 实现了标准 UART 全双工串口操作，不做额外的 GPIO 控制
+// 标准 UART 全双工串口操作
 type UARTPort struct {
 	cfg    config.Port
 	handle *serial.Port
 }
 
-// NewUARTPort 根据配置返回 UARTPort 实例
+// 根据配置返回 UARTPort 实例
 func NewUARTPort(cfg config.Port) Port {
 	return &UARTPort{cfg: cfg}
 }
@@ -47,8 +47,12 @@ func (u *UARTPort) Read(p []byte) (int, error) {
 	return u.handle.Read(p)
 }
 
-// Write 实现 io.Writer，写入原始字节
+// Write 实现 io.Writer
 func (u *UARTPort) Write(p []byte) (int, error) {
+	// 打印写入内容：作为字符串和十六进制
+	fmt.Printf("⇨ UARTPort.Write writing %d bytes: % X (as string: %q)\n", len(p), p, string(p))
+
+	// 真正写入底层串口
 	n, err := u.handle.Write(p)
 	if err != nil {
 		return n, fmt.Errorf("UART write failed: %w", err)
@@ -72,8 +76,11 @@ func (u *UARTPort) ReadFrame() ([]byte, error) {
 	return buf[:n], nil
 }
 
-// WriteFrame 直接写整帧数据
 func (u *UARTPort) WriteFrame(frame []byte) error {
+	// 打印即将写入的数据：十六进制和字符串两种格式
+	fmt.Printf("⇨ UARTPort.WriteFrame writing %d bytes: % X (as string: %q)\n", len(frame), frame, string(frame))
+
+	// 写入串口
 	if _, err := u.Write(frame); err != nil {
 		return fmt.Errorf("UART WriteFrame failed: %w", err)
 	}

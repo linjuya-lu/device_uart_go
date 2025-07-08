@@ -98,15 +98,11 @@ func (d *UartlDriver) HandleWriteCommands(deviceName string, protocols map[strin
 	d.locker.Lock()
 	defer driver.locker.Unlock()
 
-	// 遍历每个请求，取出对应的值并写入 config
 	for i, req := range reqs {
 		resName := req.DeviceResourceName
 		cv := params[i]
 
-		// 直接使用 CommandValue.Value（已经是合适的 Go 类型）
 		value := cv.Value
-
-		// 并发安全地写入运行时值表
 
 		d.lc.Infof("写入值: %s.%s = %v", deviceName, resName, value)
 	}

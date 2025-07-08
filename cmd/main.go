@@ -8,7 +8,6 @@ package main
 
 import (
 	"github.com/edgexfoundry/device-sdk-go/v4/pkg/startup"
-
 	device_virtual "github.com/edgexfoundry/device-virtual-go"
 	"github.com/linjuya-lu/device_uart_go/internal/driver"
 )

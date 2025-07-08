@@ -9,7 +9,7 @@ import (
 	"github.com/linjuya-lu/device_uart_go/internal/config"
 )
 
-// Port 是整个 serial 包对外暴露的通用串口接口，支持原始字节与帧级操作
+// Port 是整个 serial 包对外暴露的通用串口接口
 type Port interface {
 	// 打开串口（含 GPIO 初始化）
 	Open() error
@@ -22,6 +22,7 @@ type Port interface {
 	// Name 返回逻辑端口名称
 	Name() string
 
+	//暂未用到，保留接口 用于填充数据发完整整
 	// ReadFrame 从串口里按协议取出一整帧（固定帧/可变帧）数据
 	ReadFrame() ([]byte, error)
 	// WriteFrame 直接向串口写入一整帧数据
@@ -43,7 +44,6 @@ func NewPort(cfg config.Port) (Port, error) {
 }
 
 // StartReadLoop 会在后台协程里不断从 p.ReadFrame() 读取完整帧，
-// 每拿到一帧就调用 onFrame(portName, data)
 func StartReadLoop(p Port, onFrame func(portName string, data []byte)) {
 	go func() {
 		for {
