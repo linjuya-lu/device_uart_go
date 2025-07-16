@@ -20,12 +20,10 @@ type RS232Port struct {
 	port *aliasserial.Port
 }
 
-// NewRS232Port 构造 RS232Port
 func NewRS232Port(cfg config.Port) Port {
 	return &RS232Port{cfg: cfg}
 }
 
-// Open 打开并配置串口
 func (r *RS232Port) Open() error {
 	sc := &aliasserial.Config{
 		Name:        r.cfg.Device,
@@ -40,7 +38,6 @@ func (r *RS232Port) Open() error {
 	return nil
 }
 
-// Close 关闭串口
 func (r *RS232Port) Close() error {
 	if r.port != nil {
 		return r.port.Close()
@@ -48,12 +45,10 @@ func (r *RS232Port) Close() error {
 	return nil
 }
 
-// Read 读取原始字节，实现 io.Reader
 func (r *RS232Port) Read(p []byte) (int, error) {
 	return r.port.Read(p)
 }
 
-// Write 写入原始字节，实现 io.Writer
 func (r *RS232Port) Write(p []byte) (int, error) {
 	n, err := r.port.Write(p)
 	if err != nil {

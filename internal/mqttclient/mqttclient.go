@@ -1,4 +1,3 @@
-// internal/mqtt/client.go
 package mqttclient
 
 import (
@@ -36,7 +35,7 @@ func NewClient(brokerURL, clientID string) (mqtt.Client, error) {
 	return client, nil
 }
 
-// EdgexMessage 是 EdgeX MessageBus 的通用消息格式
+// MessageBus消息格式
 type EdgexMessage struct {
 	ApiVersion    string      `json:"apiVersion"`
 	ReceivedTopic string      `json:"receivedTopic,omitempty"`
@@ -47,7 +46,7 @@ type EdgexMessage struct {
 	ContentType   string      `json:"contentType"`
 }
 
-// SerialPayload 是 payload 部分的结构
+// payload部分结构
 type SerialPayload struct {
 	Port      string `json:"port"`
 	Timestamp int64  `json:"timestamp"` // Unix 纳秒
@@ -55,24 +54,18 @@ type SerialPayload struct {
 }
 
 // PublishSerialFrame 组装并发布一条 EdgeX 格式的消息：
-//   - topic: 要发布的 MQTT 主题
-//   - port:  串口设备节点，如 "/dev/ttyUSB1"
-//   - frame: 串口读到的原始 []byte 数据
 func PublishSerialFrame(client mqtt.Client, topic, port string, frame []byte) error {
 	// 调用入口打印原始二进制
-	fmt.Printf("▶ PublishSerialFrame called: topic=%s, port=%s, raw frame=% X\n", topic, port, frame)
-
-	// 将 frame 转为可见十六进制字符串
+	fmt.Printf(" PublishSerialFrame called: topic=%s, port=%s, raw frame=% X\n", topic, port, frame)
+	// 十六进制字符串
 	hexData := strings.ToUpper(hex.EncodeToString(frame))
-	fmt.Printf("▶ Converted frame to hex string: %s\n", hexData)
-
+	fmt.Printf(" Converted frame to hex string: %s\n", hexData)
 	// 1. 内层 payload: Data 字段存放十六进制字符串
 	payload := SerialPayload{
 		Port:      port,
 		Timestamp: time.Now().UnixNano(),
 		Data:      hexData,
 	}
-
 	// 2. 外层通用消息
 	msg := EdgexMessage{
 		ApiVersion:    "v3",
@@ -83,17 +76,14 @@ func PublishSerialFrame(client mqtt.Client, topic, port string, frame []byte) er
 		Payload:       payload,
 		ContentType:   "application/json",
 	}
-
 	// 3. 序列化 JSON
 	body, err := json.Marshal(msg)
 	if err != nil {
 		fmt.Printf("❌ JSON Marshal error: %v\n", err)
 		return err
 	}
-
-	// 发布前打印主题和消息体
+	// 主题和消息体
 	fmt.Printf("⮉ Publishing MQTT topic=%s, message=%s\n", topic, string(body))
-
 	// 4. 发布并等待完成
 	tok := client.Publish(topic, 0, false, body)
 	tok.Wait()

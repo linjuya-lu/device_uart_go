@@ -38,7 +38,7 @@ func InitializeSerialProxy(configPath string, mqttClient mqtt.Client) error {
 	for _, b := range config.SerialCfg.Bindings {
 		portProtoss[b.PortName] = append(portProtoss[b.PortName], b.ProtocolID)
 	}
-	// 4. 单协程读循环：每个端口只起一个 goroutine，但支持多协议解析
+	// 4. 单协程读循环：每个端口只起一个 goroutine，支持多协议解析
 	for portName, port := range portMap {
 		protoIDs := portProtoss[portName]
 		if len(protoIDs) == 0 {

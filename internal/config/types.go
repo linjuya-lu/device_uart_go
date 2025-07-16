@@ -1,6 +1,6 @@
 package config
 
-// Port 描述一个串口设备
+// 描述串口设备
 type Port struct {
 	Name      string `yaml:"name"`      // 逻辑名称
 	Device    string `yaml:"device"`    // 串口设备节点
@@ -10,17 +10,17 @@ type Port struct {
 	TimeoutMs int    `yaml:"timeoutMs"` // 读操作超时（毫秒）
 }
 
-// 一种协议对应的 MQTT 主题
+// 协议对应主题
 type Protocol struct {
-	ID            string // 协议标识符
+	ID            string
 	RequestTopic  string // 下行主题
 	ResponseTopic string // 上行主题
 }
 
-// 端口绑定使用哪种协议
+// 端口绑定协议
 type Binding struct {
-	PortName   string `yaml:"portName"`   // Port.Name
-	ProtocolID string `yaml:"protocolId"` // Protocol.ID
+	PortName   string `yaml:"portName"`
+	ProtocolID string `yaml:"protocolId"`
 }
 
 // SerialProxyConfig 汇总了 Ports、Protocols、Bindings 等

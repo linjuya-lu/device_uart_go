@@ -97,13 +97,10 @@ func (d *UartlDriver) HandleWriteCommands(deviceName string, protocols map[strin
 	params []*dsModels.CommandValue) error {
 	d.locker.Lock()
 	defer driver.locker.Unlock()
-
 	for i, req := range reqs {
 		resName := req.DeviceResourceName
 		cv := params[i]
-
 		value := cv.Value
-
 		d.lc.Infof("写入值: %s.%s = %v", deviceName, resName, value)
 	}
 	return nil
@@ -111,13 +108,11 @@ func (d *UartlDriver) HandleWriteCommands(deviceName string, protocols map[strin
 
 func (d *UartlDriver) Stop(force bool) error {
 	d.lc.Info("VirtualDriver.Stop: device-virtual driver is stopping...")
-
 	return nil
 }
 
 func (d *UartlDriver) AddDevice(deviceName string, protocols map[string]models.ProtocolProperties, adminState models.AdminState) error {
 	d.lc.Debugf("a new Device is added: %s", deviceName)
-
 	return nil
 }
 
@@ -131,8 +126,8 @@ func (d *UartlDriver) RemoveDevice(deviceName string, protocols map[string]model
 	return nil
 }
 
-func initVirtualResourceTable(driver *UartlDriver) error {
-
+func initVirtualResourceTable(d *UartlDriver) error {
+	d.lc.Debugf("initVirtualResourceTable")
 	return nil
 }
 

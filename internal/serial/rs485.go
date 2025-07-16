@@ -22,7 +22,6 @@ type RS485Port struct {
 	buf    []byte       // 缓存用于帧级解析
 }
 
-// 构造 RS485Port 实例
 func NewRS485Port(cfg config.Port) Port {
 	return &RS485Port{cfg: cfg, buf: make([]byte, 0)}
 }

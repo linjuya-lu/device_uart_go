@@ -24,7 +24,6 @@ var Parsers = map[string]FrameParser{
 func parseProto23(buf []byte) ([]byte, []byte, error) {
 	s := string(buf)
 	fmt.Printf("parseProto23 ▶ in ascii: %s\n", s)
-
 	// 查找 "AA" 头
 	start := strings.Index(s, "AA")
 	if start < 0 {
@@ -36,7 +35,6 @@ func parseProto23(buf []byte) ([]byte, []byte, error) {
 		return nil, buf, nil
 	}
 	end := start + 2 + idx + 2 // 包含尾标长度
-
 	frameHex := s[start:end]
 	restAscii := s[end:]
 	fmt.Printf("parseProto23 ▶ frameHex: %s, restAscii: %s\n", frameHex, restAscii)

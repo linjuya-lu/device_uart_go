@@ -11,17 +11,11 @@ import (
 
 // Port 是整个 serial 包对外暴露的通用串口接口
 type Port interface {
-	// 打开串口（含 GPIO 初始化）
 	Open() error
-	// 关闭串口（含 GPIO 释放）
 	Close() error
-	// Read 读取原始字节，实现 io.Reader
 	Read(p []byte) (int, error)
-	// Write 写入原始字节，实现 io.Writer
 	Write(p []byte) (int, error)
-	// Name 返回逻辑端口名称
 	Name() string
-
 	//暂未用到，保留接口 用于填充数据发完整整
 	// ReadFrame 从串口里按协议取出一整帧（固定帧/可变帧）数据
 	ReadFrame() ([]byte, error)

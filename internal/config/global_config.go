@@ -16,7 +16,6 @@ type SerialConfig struct {
 }
 
 var (
-	// SerialCfg 全局持有反序列化后的配置
 	SerialCfg   *SerialProxyConfig
 	once        sync.Once
 	portMap     map[string]Port
@@ -24,7 +23,7 @@ var (
 	bindingMap  map[string][]Protocol // 端口名 → 多个 Protocol
 )
 
-// 指定 YAML 文件加载配置
+// 加载配置
 func LoadConfig(path string) error {
 	var err error
 	once.Do(func() {
@@ -54,9 +53,9 @@ func LoadConfig(path string) error {
 			id := b.ProtocolID
 			if _, exists := ProtocolMap[id]; !exists {
 				req := fmt.Sprintf(
-					"edgex/service/command/request/device_uart/%s", id)
+					"edgex/service/request/request/device_uart/%s", id)
 				rsp := fmt.Sprintf(
-					"edgex/service/data/device_uart/%s", id)
+					"edgex/service/response/device_uart/%s", id)
 				ProtocolMap[id] = Protocol{ID: id, RequestTopic: req, ResponseTopic: rsp}
 			}
 		}
@@ -68,7 +67,7 @@ func LoadConfig(path string) error {
 				bindingMap[b.PortName] = append(bindingMap[b.PortName], pr)
 			}
 		}
-		// **新增：** 同步把 protocolMap 转成 SerialCfg.Protocols
+		// 把 protocolMap 转成 SerialCfg.Protocols
 		SerialCfg.Protocols = make([]Protocol, 0, len(ProtocolMap))
 		for _, pr := range ProtocolMap {
 			SerialCfg.Protocols = append(SerialCfg.Protocols, pr)
@@ -77,19 +76,18 @@ func LoadConfig(path string) error {
 	return err
 }
 
-// GetProtocolsForPort 返回指定端口对应的所有协议，未绑定则返回默认协议
+// 返回指定端口对应的所有协议，未绑定则返回默认协议
 func GetProtocolsForPort(name string) []Protocol {
 	if ps, ok := bindingMap[name]; ok && len(ps) > 0 {
 		return ps
 	}
-	// 如果没有绑定，返回默认协议
 	if def, ok := ProtocolMap[SerialCfg.DefaultProtocol]; ok {
 		return []Protocol{def}
 	}
 	return nil
 }
 
-// GetPort 根据端口名称返回 Port 配置
+// 根据端口名称返回 Port 配置
 func GetPort(name string) (Port, bool) {
 	p, ok := portMap[name]
 	return p, ok

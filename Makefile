@@ -11,7 +11,7 @@ MICROSERVICES=cmd/device-virtual
 
 ARCH=$(shell uname -m)
 
-DOCKERS=docker_device_virtual_go
+DOCKERS=docker_device_uart_go
 .PHONY: $(DOCKERS)
 
 VERSION=$(shell cat ./VERSION 2>/dev/null || echo 0.0.0)
@@ -67,7 +67,7 @@ clean:
 
 docker: $(DOCKERS)
 
-docker_device_virtual_go:
+docker_device_uart_go:
 	docker build \
 		--build-arg ADD_BUILD_TAGS=$(ADD_BUILD_TAGS) \
 		--label "git_sha=$(GIT_SHA)" \
